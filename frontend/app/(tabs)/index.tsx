@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -17,16 +17,24 @@ import { filtersToParams, type SearchFilters } from '@/utils/filterListings';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { listings, config } = useData();
+  const { listings, config, ready } = useData();
+
+  if (!ready) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+      </View>
+    );
+  }
 
   const seeAll = (partial: Partial<SearchFilters>) => {
     router.push({ pathname: '/search', params: filtersToParams(partial) });
   };
   const nearYou = listings.slice(0, 2);
   const bestRated = [...listings].sort((a, b) => b.rating - a.rating);
-  const mostPopular = [listings[0], listings[1], listings[3]];
+  const mostPopular = listings.slice(0, 4);
   const coLiving = listings.filter((l) => l.type === 'Co-Living').slice(0, 2);
-  const recentlyVerified = [listings[1], listings[5], listings[3], listings[4]];
+  const recentlyVerified = listings.slice(1, 5);
   const featured = listings[0];
 
   return (
@@ -51,7 +59,7 @@ export default function HomeScreen() {
         />
         <ListingCarousel listings={bestRated} variant="compact" />
 
-        <FeaturedCard listing={featured} />
+        {featured ? <FeaturedCard listing={featured} /> : null}
 
         <SectionHeader
           title="Most popular near you"
@@ -93,6 +101,12 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingBottom: theme.spacing.xxl,
+  },
+  loading: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.background,
   },
   footer: {
     flexDirection: 'row',

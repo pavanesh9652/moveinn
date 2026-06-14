@@ -1,5 +1,7 @@
+import { router } from 'expo-router';
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 
+import { ADMIN_LOGIN_ROUTE } from '@/constants/routes';
 import { adminLogin, adminLogout, getAdminToken, verifyAdminSession } from '@/lib/adminAuth';
 
 type AdminAuthContextValue = {
@@ -37,6 +39,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     await adminLogout();
     setIsAdmin(false);
+    router.replace(ADMIN_LOGIN_ROUTE);
   }, []);
 
   return (

@@ -21,6 +21,10 @@ export default function ProfileScreen() {
     }
   };
 
+  const handleSignOut = () => {
+    void signOut();
+  };
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <LocationHeader location={config.currentLocation} />
@@ -39,7 +43,7 @@ export default function ProfileScreen() {
 
         <Pressable
           style={styles.signOutButton}
-          onPress={() => void signOut()}
+          onPress={handleSignOut}
         >
           <Ionicons name="log-out-outline" size={20} color={theme.colors.primary} />
           <Text style={styles.signOutText}>Sign out</Text>

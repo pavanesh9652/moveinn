@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
@@ -13,10 +14,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AuthHeader } from '@/components/auth/AuthHeader';
 import { AuthInput } from '@/components/auth/AuthInput';
+import { ADMIN_ONBOARD_ROUTE } from '@/constants/routes';
 import { theme } from '@/constants/theme';
 import { useAdminAuth } from '@/context/AdminAuthContext';
 
 export default function AdminLoginScreen() {
+  const router = useRouter();
   const { signIn } = useAdminAuth();
   const [email, setEmail] = useState('admin@rentrent.com');
   const [password, setPassword] = useState('');
@@ -33,6 +36,7 @@ export default function AdminLoginScreen() {
     setError('');
     try {
       await signIn(email.trim().toLowerCase(), password);
+      router.replace(ADMIN_ONBOARD_ROUTE);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
     } finally {

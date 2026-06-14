@@ -1,7 +1,11 @@
-import { useRouter, useSegments } from 'expo-router';
+import { usePathname, useRouter } from 'expo-router';
 import { useEffect, type ReactNode } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
+import {
+  ADMIN_LOGIN_ROUTE,
+  isAdminOnboardPath,
+} from '@/constants/routes';
 import { theme } from '@/constants/theme';
 import { useAdminAuth } from '@/context/AdminAuthContext';
 
@@ -11,26 +15,26 @@ type AdminRouteGuardProps = {
 
 export function AdminRouteGuard({ children }: AdminRouteGuardProps) {
   const router = useRouter();
-  const segments = useSegments();
+  const pathname = usePathname();
   const { isAdmin, ready } = useAdminAuth();
-
-  const lastSegment = segments[segments.length - 1];
-  const onLoginScreen = lastSegment === 'admin' || lastSegment === 'index';
 
   useEffect(() => {
     if (!ready) return;
 
-    if (!isAdmin && !onLoginScreen) {
-      router.replace('/admin');
-      return;
+    if (!isAdmin && isAdminOnboardPath(pathname)) {
+      router.replace(ADMIN_LOGIN_ROUTE);
     }
-
-    if (isAdmin && onLoginScreen) {
-      router.replace('/admin/onboard');
-    }
-  }, [ready, isAdmin, onLoginScreen, router]);
+  }, [ready, isAdmin, pathname, router]);
 
   if (!ready) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+      </View>
+    );
+  }
+
+  if (!isAdmin && isAdminOnboardPath(pathname)) {
     return (
       <View style={styles.loading}>
         <ActivityIndicator size="large" color={theme.colors.primary} />

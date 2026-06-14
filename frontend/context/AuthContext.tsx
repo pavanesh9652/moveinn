@@ -1,9 +1,7 @@
-import { router } from 'expo-router';
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { AppState, Platform } from 'react-native';
 
-import { LOGIN_ROUTE } from '@/constants/routes';
-import { getToken, logout } from '@/lib/auth';
+import { clearToken, getToken } from '@/lib/auth';
 
 type AuthContextValue = {
   isAuthenticated: boolean;
@@ -18,8 +16,10 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [ready, setReady] = useState(false);
+  const signingOutRef = useRef(false);
 
   const refresh = useCallback(async () => {
+    if (signingOutRef.current) return;
     const token = await getToken();
     setIsAuthenticated(!!token);
   }, []);
@@ -55,9 +55,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   const signOut = useCallback(async () => {
-    await logout();
-    setIsAuthenticated(false);
-    router.dismissTo(LOGIN_ROUTE);
+    if (signingOutRef.current) return;
+    signingOutRef.current = true;
+
+    try {
+      await clearToken();
+      setIsAuthenticated(false);
+    } finally {
+      signingOutRef.current = false;
+    }
   }, []);
 
   return (

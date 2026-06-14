@@ -2,6 +2,16 @@ import { LOGIN_ROUTE } from '@/lib/auth';
 
 export const SIGNUP_ROUTE = '/signup' as const;
 export const HOME_ROUTE = '/(tabs)' as const;
+export const ADMIN_LOGIN_ROUTE = '/admin' as const;
+export const ADMIN_ONBOARD_ROUTE = '/admin/onboard' as const;
+
+export function isAdminLoginPath(pathname: string) {
+  return pathname === ADMIN_LOGIN_ROUTE || pathname === `${ADMIN_LOGIN_ROUTE}/`;
+}
+
+export function isAdminOnboardPath(pathname: string) {
+  return pathname === ADMIN_ONBOARD_ROUTE || pathname.startsWith(`${ADMIN_ONBOARD_ROUTE}/`);
+}
 
 /** Route segment names that do not require authentication */
 const PUBLIC_SEGMENTS = new Set(['index', 'login', 'signup']);

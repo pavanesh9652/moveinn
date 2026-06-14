@@ -5,7 +5,6 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { LOGIN_ROUTE, isProtectedRoute } from '@/constants/routes';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
-import { getToken } from '@/lib/auth';
 
 type RouteGuardProps = {
   children: ReactNode;
@@ -19,24 +18,13 @@ export function RouteGuard({ children }: RouteGuardProps) {
   useEffect(() => {
     if (!ready) return;
     if (segments[0] === 'admin') return;
+    if (isAuthenticated) return;
+    if (!isProtectedRoute(segments)) return;
 
-    void (async () => {
-      const token = await getToken();
-      if (!token && isProtectedRoute(segments)) {
-        router.replace(LOGIN_ROUTE);
-      }
-    })();
-  }, [ready, segments, router]);
+    router.replace(LOGIN_ROUTE);
+  }, [ready, isAuthenticated, segments, router]);
 
   if (!ready) {
-    return (
-      <View style={styles.loading}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
-      </View>
-    );
-  }
-
-  if (isProtectedRoute(segments) && !isAuthenticated) {
     return (
       <View style={styles.loading}>
         <ActivityIndicator size="large" color={theme.colors.primary} />

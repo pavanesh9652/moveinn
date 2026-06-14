@@ -1,17 +1,17 @@
 import { useSegments } from 'expo-router';
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import {
-    AuthError,
-    fetchConfig,
-    fetchListings,
-    fetchUserData,
-    type AppConfig,
-    type ProfileMenuItem,
-    type UserData,
+  AuthError,
+  fetchConfig,
+  fetchListings,
+  fetchUserData,
+  type AppConfig,
+  type ProfileMenuItem,
+  type UserData,
 } from '@/lib/api';
 import type { Listing } from '@/types/listing';
 
@@ -21,14 +21,28 @@ type DataContextValue = {
   userData: UserData;
   getListingById: (id: string) => Listing | undefined;
   refreshUserData: () => Promise<void>;
+  ready: boolean;
 };
 
-const DataContext = createContext<DataContextValue | null>(null);
+const EMPTY_DATA: DataContextValue = {
+  listings: [],
+  config: { currentLocation: '', filterChips: [] },
+  userData: {
+    user: { name: '', email: '', initial: '?', verifiedSince: '' },
+    profileMenu: [],
+    savedListingIds: [],
+  },
+  getListingById: () => undefined,
+  refreshUserData: async () => {},
+  ready: false,
+};
+
+const DataContext = createContext<DataContextValue>(EMPTY_DATA);
 
 export function DataProvider({ children }: { children: ReactNode }) {
   const segments = useSegments();
-  const { isAuthenticated, ready: authReady, signOut } = useAuth();
   const isAdminRoute = segments[0] === 'admin';
+  const { isAuthenticated, ready: authReady, signOut } = useAuth();
   const [listings, setListings] = useState<Listing[]>([]);
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
@@ -39,6 +53,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [signOut]);
 
   const loadData = useCallback(async () => {
+    if (!isAuthenticated) return;
+
     try {
       const [listingsData, configData, user] = await Promise.all([
         fetchListings(),
@@ -56,7 +72,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }
       setError(err instanceof Error ? err.message : 'Failed to load data');
     }
-  }, [handleAuthError]);
+  }, [handleAuthError, isAuthenticated]);
 
   const refreshUserData = useCallback(async () => {
     try {
@@ -70,61 +86,70 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [handleAuthError]);
 
   useEffect(() => {
-    if (!authReady || !isAuthenticated) {
+    if (!authReady) return;
+
+    if (!isAuthenticated) {
       setListings([]);
       setConfig(null);
       setUserData(null);
       setError(null);
       return;
     }
+
     loadData();
   }, [authReady, isAuthenticated, loadData]);
 
   const needsData = authReady && isAuthenticated && !isAdminRoute;
+  const dataReady = needsData && config !== null && userData !== null && !error;
+  const showLoadingOverlay = needsData && !dataReady && !error;
+  const showErrorOverlay = needsData && !!error;
 
-  if (!needsData) {
-    return <>{children}</>;
-  }
+  const contextValue = useMemo<DataContextValue>(() => {
+    if (!dataReady || !config || !userData) {
+      return EMPTY_DATA;
+    }
 
-  if (error) {
-    return (
-      <View style={styles.centered}>
-        <Text style={styles.errorTitle}>Could not load data</Text>
-        <Text style={styles.errorText}>
-          Make sure the backend is running on port 3001.
-        </Text>
-      </View>
-    );
-  }
-
-  if (!config || !userData) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
-      </View>
-    );
-  }
-
-  const getListingById = (id: string) => listings.find((listing) => listing.id === id);
+    return {
+      listings,
+      config,
+      userData,
+      getListingById: (id: string) => listings.find((listing) => listing.id === id),
+      refreshUserData,
+      ready: true,
+    };
+  }, [dataReady, listings, config, userData, refreshUserData]);
 
   return (
-    <DataContext.Provider value={{ listings, config, userData, getListingById, refreshUserData }}>
+    <DataContext.Provider value={contextValue}>
       {children}
+      {showLoadingOverlay ? (
+        <View style={[styles.overlay, styles.centered]}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
+      ) : null}
+      {showErrorOverlay ? (
+        <View style={[styles.overlay, styles.centered]}>
+          <Text style={styles.errorTitle}>Could not load data</Text>
+          <Text style={styles.errorText}>
+            Make sure the backend is running on port 3001.
+          </Text>
+        </View>
+      ) : null}
     </DataContext.Provider>
   );
 }
 
 export function useData() {
-  const context = useContext(DataContext);
-  if (!context) {
-    throw new Error('useData must be used within DataProvider');
-  }
-  return context;
+  return useContext(DataContext);
 }
 
 export type { ProfileMenuItem };
 
 const styles = StyleSheet.create({
+  overlay: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: theme.colors.background,
+  },
   centered: {
     flex: 1,
     alignItems: 'center',

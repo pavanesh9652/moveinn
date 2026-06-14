@@ -2,15 +2,14 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
 
 import { ListingOnboardForm } from '@/components/admin/ListingOnboardForm';
 import { theme } from '@/constants/theme';
 import { useAdminAuth } from '@/context/AdminAuthContext';
 
 export default function AdminOnboardScreen() {
-  const router = useRouter();
   const { signOut } = useAdminAuth();
+  const [signingOut, setSigningOut] = useState(false);
   const [lastCreatedId, setLastCreatedId] = useState<string | null>(null);
 
   return (
@@ -22,9 +21,14 @@ export default function AdminOnboardScreen() {
         </View>
         <Pressable
           style={styles.signOut}
+          disabled={signingOut}
           onPress={async () => {
-            await signOut();
-            router.replace('/admin');
+            setSigningOut(true);
+            try {
+              await signOut();
+            } finally {
+              setSigningOut(false);
+            }
           }}
         >
           <Ionicons name="log-out-outline" size={18} color={theme.colors.primary} />
