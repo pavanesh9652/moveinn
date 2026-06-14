@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 
 import { requestLogger } from './middleware/requestLogger.js';
 import { apiRouter } from './routes/index.js';
+import { mountFrontend } from './serveFrontend.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -16,6 +17,7 @@ export function createApp() {
   app.use(express.json());
   app.use('/images', express.static(path.join(__dirname, '../public/images')));
   app.use('/api', apiRouter);
+  mountFrontend(app);
 
   return app;
 }

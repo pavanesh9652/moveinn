@@ -10,6 +10,12 @@
     "frontend": "npm run start --workspace=frontend",
     "backend": "npm run dev --workspace=backend",
     "dev": "npm run backend & npm run frontend",
-    "install:all": "npm install"
+    "install:all": "npm install",
+    "build": "npm run build --workspace=frontend && npm run build --workspace=backend",
+    "start:prod": "npm run start --workspace=backend",
+    "pm2:start": "pm2 start ecosystem.config.cjs",
+    "pm2:restart": "pm2 restart moveinn",
+    "pm2:stop": "pm2 stop moveinn",
+    "pm2:logs": "pm2 logs moveinn"
   }
 }

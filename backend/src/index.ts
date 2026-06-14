@@ -14,7 +14,8 @@ async function start() {
   const app = createApp();
 
   app.listen(PORT, () => {
-    console.log(`RentRent API running at http://localhost:${PORT}`);
+    console.log(`MoveInn server running at http://localhost:${PORT}`);
+    console.log('API routes: /api/*');
   });
 }
 
