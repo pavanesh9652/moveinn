@@ -1,11 +1,14 @@
 import bcrypt from 'bcryptjs';
 
-import { pool } from './pool.js';
+import { closeDb, getDb } from './mongo.js';
+import type { InquiryDoc, ListingDoc, SavedListingDoc, UserDoc } from './types.js';
 
 const DEMO_USER_ID = '00000000-0000-0000-0000-000000000001';
 const ADMIN_USER_ID = '00000000-0000-0000-0000-000000000099';
 
-const listings = [
+type SeedListing = Omit<ListingDoc, '_id' | 'createdAt'> & { id: string };
+
+const listings: SeedListing[] = [
   {
     id: '1',
     name: 'Skyline Residency',
@@ -102,124 +105,88 @@ const listings = [
 ];
 
 async function seed() {
-  const client = await pool.connect();
+  const db = await getDb();
+  const now = new Date();
 
-  try {
-    await client.query('BEGIN');
+  const demoPasswordHash = await bcrypt.hash('password123', 10);
+  const adminPasswordHash = await bcrypt.hash('123456', 10);
 
-    const demoPasswordHash = await bcrypt.hash('password123', 10);
-    const adminPasswordHash = await bcrypt.hash('123456', 10);
+  await db.collection<UserDoc>('users').updateOne(
+    { _id: ADMIN_USER_ID },
+    {
+      $set: {
+        name: 'RentRent Admin',
+        email: 'admin@rentrent.com',
+        mobile: '9000000000',
+        passwordHash: adminPasswordHash,
+        initial: 'R',
+        verifiedSince: '2024',
+        role: 'admin',
+      },
+      $setOnInsert: { createdAt: now },
+    },
+    { upsert: true },
+  );
 
-    await client.query(
-      `INSERT INTO users (id, name, email, mobile, password_hash, initial, verified_since, role)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       ON CONFLICT (email) DO UPDATE
-       SET name = EXCLUDED.name,
-           mobile = EXCLUDED.mobile,
-           password_hash = EXCLUDED.password_hash,
-           initial = EXCLUDED.initial,
-           verified_since = EXCLUDED.verified_since,
-           role = EXCLUDED.role`,
-      [
-        ADMIN_USER_ID,
-        'RentRent Admin',
-        'admin@rentrent.com',
-        '9000000000',
-        adminPasswordHash,
-        'R',
-        '2024',
-        'admin',
-      ],
+  await db.collection<UserDoc>('users').updateOne(
+    { _id: DEMO_USER_ID },
+    {
+      $set: {
+        name: 'Aarav Sharma',
+        email: 'aarav@example.com',
+        mobile: '9876543210',
+        passwordHash: demoPasswordHash,
+        initial: 'A',
+        verifiedSince: '2024',
+        role: 'user',
+      },
+      $setOnInsert: { createdAt: now },
+    },
+    { upsert: true },
+  );
+
+  for (const listing of listings) {
+    const { id, ...fields } = listing;
+    await db.collection<ListingDoc>('listings').updateOne(
+      { _id: id },
+      { $set: fields, $setOnInsert: { createdAt: now } },
+      { upsert: true },
     );
-
-    await client.query(
-      `INSERT INTO users (id, name, email, mobile, password_hash, initial, verified_since)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       ON CONFLICT (email) DO UPDATE
-       SET name = EXCLUDED.name,
-           mobile = EXCLUDED.mobile,
-           password_hash = EXCLUDED.password_hash,
-           initial = EXCLUDED.initial,
-           verified_since = EXCLUDED.verified_since`,
-      [
-        DEMO_USER_ID,
-        'Aarav Sharma',
-        'aarav@example.com',
-        '9876543210',
-        demoPasswordHash,
-        'A',
-        '2024',
-      ],
-    );
-
-    for (const listing of listings) {
-      await client.query(
-        `INSERT INTO listings (
-          id, name, type, rating, review_count, price, area, city,
-          distance_km, travel_minutes, cuisine, room_types, gender,
-          image_filename, featured_tagline
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-        ON CONFLICT (id) DO UPDATE SET
-          name = EXCLUDED.name,
-          type = EXCLUDED.type,
-          rating = EXCLUDED.rating,
-          review_count = EXCLUDED.review_count,
-          price = EXCLUDED.price,
-          area = EXCLUDED.area,
-          city = EXCLUDED.city,
-          distance_km = EXCLUDED.distance_km,
-          travel_minutes = EXCLUDED.travel_minutes,
-          cuisine = EXCLUDED.cuisine,
-          room_types = EXCLUDED.room_types,
-          gender = EXCLUDED.gender,
-          image_filename = EXCLUDED.image_filename,
-          featured_tagline = EXCLUDED.featured_tagline`,
-        [
-          listing.id,
-          listing.name,
-          listing.type,
-          listing.rating,
-          listing.reviewCount,
-          listing.price,
-          listing.area,
-          listing.city,
-          listing.distanceKm,
-          listing.travelMinutes ?? null,
-          listing.cuisine ?? null,
-          listing.roomTypes,
-          listing.gender ?? null,
-          listing.imageFilename,
-          listing.featuredTagline ?? null,
-        ],
-      );
-    }
-
-    await client.query('DELETE FROM saved_listings WHERE user_id = $1', [DEMO_USER_ID]);
-    await client.query(
-      `INSERT INTO saved_listings (user_id, listing_id)
-       VALUES ($1, '1'), ($1, '2')`,
-      [DEMO_USER_ID],
-    );
-
-    await client.query('DELETE FROM inquiries WHERE user_id = $1', [DEMO_USER_ID]);
-    await client.query(
-      `INSERT INTO inquiries (user_id, listing_id, message, status)
-       VALUES
-         ($1, '1', 'Is a single room available from next month?', 'pending'),
-         ($1, '3', 'Do you offer a trial stay?', 'pending'),
-         ($1, '4', 'What is included in the monthly rent?', 'replied')`,
-      [DEMO_USER_ID],
-    );
-
-    await client.query('COMMIT');
-    console.log('Database seeded successfully.');
-  } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally {
-    client.release();
-    await pool.end();
   }
+
+  await db.collection<SavedListingDoc>('saved_listings').deleteMany({ userId: DEMO_USER_ID });
+  await db.collection<SavedListingDoc>('saved_listings').insertMany([
+    { userId: DEMO_USER_ID, listingId: '1', savedAt: now },
+    { userId: DEMO_USER_ID, listingId: '2', savedAt: now },
+  ]);
+
+  await db.collection<InquiryDoc>('inquiries').deleteMany({ userId: DEMO_USER_ID });
+  await db.collection<InquiryDoc>('inquiries').insertMany([
+    {
+      userId: DEMO_USER_ID,
+      listingId: '1',
+      message: 'Is a single room available from next month?',
+      status: 'pending',
+      createdAt: now,
+    },
+    {
+      userId: DEMO_USER_ID,
+      listingId: '3',
+      message: 'Do you offer a trial stay?',
+      status: 'pending',
+      createdAt: now,
+    },
+    {
+      userId: DEMO_USER_ID,
+      listingId: '4',
+      message: 'What is included in the monthly rent?',
+      status: 'replied',
+      createdAt: now,
+    },
+  ]);
+
+  console.log('Database seeded successfully.');
+  await closeDb();
 }
 
 seed().catch((error) => {

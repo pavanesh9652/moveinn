@@ -1,6 +1,8 @@
+import { router } from 'expo-router';
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { AppState, Platform } from 'react-native';
 
+import { LOGIN_ROUTE } from '@/constants/routes';
 import { getToken, logout } from '@/lib/auth';
 
 type AuthContextValue = {
@@ -55,6 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     await logout();
     setIsAuthenticated(false);
+    router.dismissTo(LOGIN_ROUTE);
   }, []);
 
   return (

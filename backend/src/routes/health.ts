@@ -1,6 +1,6 @@
 import { Router } from 'express';
 
-import { checkDbConnection } from '../db/pool.js';
+import { checkDbConnection } from '../db/mongo.js';
 
 export const healthRouter = Router();
 

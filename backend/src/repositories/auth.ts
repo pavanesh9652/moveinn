@@ -1,30 +1,22 @@
+import { randomUUID } from 'crypto';
+
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
-import { pool } from '../db/pool.js';
+import { getDb } from '../db/mongo.js';
+import type { UserDoc } from '../db/types.js';
 
 const JWT_SECRET = process.env.JWT_SECRET ?? 'rentrent-dev-secret';
 const JWT_EXPIRES_IN = '7d';
 
-type UserRow = {
-  id: string;
-  name: string;
-  email: string;
-  mobile: string | null;
-  password_hash: string | null;
-  initial: string;
-  verified_since: string;
-  role: string;
-};
-
-function toPublicUser(row: UserRow) {
+function toPublicUser(user: UserDoc) {
   return {
-    name: row.name,
-    email: row.email,
-    mobile: row.mobile ?? undefined,
-    initial: row.initial,
-    verifiedSince: row.verified_since,
-    role: row.role,
+    name: user.name,
+    email: user.email,
+    mobile: user.mobile,
+    initial: user.initial,
+    verifiedSince: user.verifiedSince,
+    role: user.role,
   };
 }
 
@@ -38,11 +30,11 @@ function nameFromEmail(email: string) {
 }
 
 export async function signupUser(email: string, mobile: string, password: string) {
-  const existing = await pool.query('SELECT id FROM users WHERE email = $1 OR mobile = $2', [
-    email,
-    mobile,
-  ]);
-  if (existing.rowCount) {
+  const db = await getDb();
+  const users = db.collection<UserDoc>('users');
+
+  const existing = await users.findOne({ $or: [{ email }, { mobile }] });
+  if (existing) {
     throw new Error('Email or mobile already registered');
   }
 
@@ -50,36 +42,40 @@ export async function signupUser(email: string, mobile: string, password: string
   const initial = name.charAt(0).toUpperCase();
   const passwordHash = await bcrypt.hash(password, 10);
   const verifiedSince = new Date().getFullYear().toString();
+  const id = randomUUID();
 
-  const result = await pool.query<UserRow>(
-    `INSERT INTO users (name, email, mobile, password_hash, initial, verified_since, role)
-     VALUES ($1, $2, $3, $4, $5, $6, 'user')
-     RETURNING id, name, email, mobile, password_hash, initial, verified_since, role`,
-    [name, email, mobile, passwordHash, initial, verifiedSince],
-  );
+  const user: UserDoc = {
+    _id: id,
+    name,
+    email,
+    mobile,
+    passwordHash,
+    initial,
+    verifiedSince,
+    role: 'user',
+    createdAt: new Date(),
+  };
 
-  const user = result.rows[0];
-  return { token: signToken(user.id), user: toPublicUser(user) };
+  await users.insertOne(user);
+
+  return { token: signToken(id), user: toPublicUser(user) };
 }
 
 export async function loginUser(email: string, password: string) {
-  const result = await pool.query<UserRow>(
-    `SELECT id, name, email, mobile, password_hash, initial, verified_since, role
-     FROM users WHERE email = $1`,
-    [email],
-  );
+  const db = await getDb();
+  const users = db.collection<UserDoc>('users');
 
-  const user = result.rows[0];
-  if (!user?.password_hash) {
+  const user = await users.findOne({ email });
+  if (!user?.passwordHash) {
     throw new Error('Invalid email or password');
   }
 
-  const valid = await bcrypt.compare(password, user.password_hash);
+  const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) {
     throw new Error('Invalid email or password');
   }
 
-  return { token: signToken(user.id), user: toPublicUser(user) };
+  return { token: signToken(user._id), user: toPublicUser(user) };
 }
 
 export function verifyToken(token: string): string | null {
@@ -92,8 +88,10 @@ export function verifyToken(token: string): string | null {
 }
 
 export async function getUserRole(userId: string): Promise<string | null> {
-  const result = await pool.query<{ role: string }>('SELECT role FROM users WHERE id = $1', [
-    userId,
-  ]);
-  return result.rows[0]?.role ?? null;
+  const db = await getDb();
+  const user = await db.collection<UserDoc>('users').findOne(
+    { _id: userId },
+    { projection: { role: 1 } },
+  );
+  return user?.role ?? null;
 }

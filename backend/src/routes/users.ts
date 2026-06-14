@@ -10,7 +10,7 @@ usersRouter.get('/', requireAuth, async (req, res) => {
     const { userId } = req as AuthedRequest;
     const profile = await getUserProfile(userId);
     if (!profile) {
-      res.status(404).json({ error: 'User not found' });
+      res.status(401).json({ error: 'Session expired — please sign in again' });
       return;
     }
     res.json(profile);

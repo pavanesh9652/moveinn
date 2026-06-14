@@ -1,4 +1,5 @@
-import { pool } from '../db/pool.js';
+import { getDb } from '../db/mongo.js';
+import type { SavedListingDoc, UserDoc } from '../db/types.js';
 
 export const PROFILE_MENU = [
   { id: 'saved', label: 'Saved properties', icon: 'heart-outline' },
@@ -9,49 +10,31 @@ export const PROFILE_MENU = [
   { id: 'help', label: 'Help & support', icon: 'help-circle-outline' },
 ] as const;
 
-type UserRow = {
-  id: string;
-  name: string;
-  email: string;
-  mobile: string | null;
-  initial: string;
-  verified_since: string;
-};
-
 export async function getUserProfile(userId: string) {
-  const userResult = await pool.query<UserRow>(
-    `SELECT id, name, email, mobile, initial, verified_since
-     FROM users
-     WHERE id = $1`,
-    [userId],
+  const db = await getDb();
+
+  const user = await db.collection<UserDoc>('users').findOne(
+    { _id: userId },
+    { projection: { name: 1, email: 1, mobile: 1, initial: 1, verifiedSince: 1 } },
   );
 
-  const user = userResult.rows[0];
   if (!user) {
     return null;
   }
 
-  const [savedResult, inquiriesResult, reviewsResult] = await Promise.all([
-    pool.query<{ listing_id: string }>(
-      'SELECT listing_id FROM saved_listings WHERE user_id = $1 ORDER BY saved_at DESC',
-      [user.id],
-    ),
-    pool.query<{ count: string }>(
-      'SELECT COUNT(*)::text AS count FROM inquiries WHERE user_id = $1',
-      [user.id],
-    ),
-    pool.query<{ count: string }>(
-      'SELECT COUNT(*)::text AS count FROM reviews WHERE user_id = $1',
-      [user.id],
-    ),
+  const [savedListings, inquiriesCount, reviewsCount] = await Promise.all([
+    db
+      .collection<SavedListingDoc>('saved_listings')
+      .find({ userId })
+      .sort({ savedAt: -1 })
+      .project({ listingId: 1 })
+      .toArray(),
+    db.collection('inquiries').countDocuments({ userId }),
+    db.collection('reviews').countDocuments({ userId }),
   ]);
 
-  const savedCount = savedResult.rowCount ?? 0;
-  const inquiriesCount = Number(inquiriesResult.rows[0]?.count ?? 0);
-  const reviewsCount = Number(reviewsResult.rows[0]?.count ?? 0);
-
   const profileMenu = PROFILE_MENU.map((item) => {
-    if (item.id === 'saved') return { ...item, count: savedCount };
+    if (item.id === 'saved') return { ...item, count: savedListings.length };
     if (item.id === 'inquiries') return { ...item, count: inquiriesCount };
     if (item.id === 'reviews') return { ...item, count: reviewsCount };
     return item;
@@ -61,11 +44,11 @@ export async function getUserProfile(userId: string) {
     user: {
       name: user.name,
       email: user.email,
-      mobile: user.mobile ?? undefined,
+      mobile: user.mobile,
       initial: user.initial,
-      verifiedSince: user.verified_since,
+      verifiedSince: user.verifiedSince,
     },
     profileMenu,
-    savedListingIds: savedResult.rows.map((row) => row.listing_id),
+    savedListingIds: savedListings.map((row) => row.listingId),
   };
 }

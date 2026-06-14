@@ -9,7 +9,6 @@ import { ProfileCard } from '@/components/profile/ProfileCard';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
-import { LOGIN_ROUTE } from '@/constants/routes';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -40,10 +39,7 @@ export default function ProfileScreen() {
 
         <Pressable
           style={styles.signOutButton}
-          onPress={async () => {
-            await signOut();
-            router.replace(LOGIN_ROUTE);
-          }}
+          onPress={() => void signOut()}
         >
           <Ionicons name="log-out-outline" size={20} color={theme.colors.primary} />
           <Text style={styles.signOutText}>Sign out</Text>

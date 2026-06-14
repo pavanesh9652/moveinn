@@ -1,18 +1,33 @@
-import { readFileSync } from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-import { pool } from './pool.js';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import { closeDb, getDb } from './mongo.js';
 
 async function migrate() {
-  const schemaPath = path.join(__dirname, 'schema.sql');
-  const schema = readFileSync(schemaPath, 'utf-8');
+  const db = await getDb();
 
-  await pool.query(schema);
-  console.log('Database schema applied.');
-  await pool.end();
+  await db.collection('users').createIndexes([
+    { key: { email: 1 }, unique: true },
+    { key: { mobile: 1 }, unique: true, sparse: true },
+  ]);
+
+  await db.collection('listings').createIndexes([
+    { key: { type: 1 } },
+    { key: { city: 1 } },
+    { key: { price: 1 } },
+  ]);
+
+  await db.collection('saved_listings').createIndexes([
+    { key: { userId: 1, listingId: 1 }, unique: true },
+    { key: { userId: 1 } },
+  ]);
+
+  await db.collection('inquiries').createIndex({ userId: 1 });
+
+  await db.collection('reviews').createIndexes([
+    { key: { userId: 1, listingId: 1 }, unique: true },
+    { key: { listingId: 1 } },
+  ]);
+
+  console.log('Database indexes applied.');
+  await closeDb();
 }
 
 migrate().catch((error) => {

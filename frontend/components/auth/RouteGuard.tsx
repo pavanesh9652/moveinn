@@ -2,9 +2,10 @@ import { useRouter, useSegments } from 'expo-router';
 import { useEffect, type ReactNode } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
-import { HOME_ROUTE, LOGIN_ROUTE, isAuthScreen, isProtectedRoute } from '@/constants/routes';
+import { LOGIN_ROUTE, isProtectedRoute } from '@/constants/routes';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
+import { getToken } from '@/lib/auth';
 
 type RouteGuardProps = {
   children: ReactNode;
@@ -13,32 +14,29 @@ type RouteGuardProps = {
 export function RouteGuard({ children }: RouteGuardProps) {
   const router = useRouter();
   const segments = useSegments();
-  const { isAuthenticated, ready, refresh } = useAuth();
-
-  useEffect(() => {
-    if (!ready) return;
-    if (segments[0] === 'admin') return;
-    void refresh();
-  }, [ready, refresh, segments]);
+  const { isAuthenticated, ready } = useAuth();
 
   useEffect(() => {
     if (!ready) return;
     if (segments[0] === 'admin') return;
 
-    const onProtectedRoute = isProtectedRoute(segments);
-    const onAuthScreen = isAuthScreen(segments);
-
-    if (onProtectedRoute && !isAuthenticated) {
-      router.replace(LOGIN_ROUTE);
-      return;
-    }
-
-    if (onAuthScreen && isAuthenticated) {
-      router.replace(HOME_ROUTE);
-    }
-  }, [ready, isAuthenticated, segments, router]);
+    void (async () => {
+      const token = await getToken();
+      if (!token && isProtectedRoute(segments)) {
+        router.replace(LOGIN_ROUTE);
+      }
+    })();
+  }, [ready, segments, router]);
 
   if (!ready) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+      </View>
+    );
+  }
+
+  if (isProtectedRoute(segments) && !isAuthenticated) {
     return (
       <View style={styles.loading}>
         <ActivityIndicator size="large" color={theme.colors.primary} />

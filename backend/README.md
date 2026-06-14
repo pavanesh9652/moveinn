@@ -18,14 +18,14 @@ src/
 │   └── users.ts
 ├── middleware/       # Express middleware (auth, etc.)
 ├── repositories/     # Database access layer
-├── db/               # Connection pool, migrations, seed
+├── db/               # MongoDB client, indexes, seed
 └── types/            # Shared TypeScript types
 ```
 
 ## Request flow
 
 ```
-HTTP request → routes/ → middleware/ (if needed) → repositories/ → PostgreSQL
+HTTP request → routes/ → middleware/ (if needed) → repositories/ → MongoDB
 ```
 
 ## API routes
@@ -42,9 +42,11 @@ HTTP request → routes/ → middleware/ (if needed) → repositories/ → Postg
 
 ## Running
 
+Requires [MongoDB](https://www.mongodb.com/docs/manual/installation/) running locally (default port 27017).
+
 ```bash
 cp .env.example .env
-npm run db:setup    # migrate + seed (requires PostgreSQL)
+npm run db:setup    # migrate + seed
 npm start           # production-style start
 npm run dev         # watch mode
 ```

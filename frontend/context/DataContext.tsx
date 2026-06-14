@@ -1,8 +1,7 @@
-import { useRouter, useSegments } from 'expo-router';
+import { useSegments } from 'expo-router';
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
-import { LOGIN_ROUTE } from '@/constants/routes';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import {
@@ -27,7 +26,6 @@ type DataContextValue = {
 const DataContext = createContext<DataContextValue | null>(null);
 
 export function DataProvider({ children }: { children: ReactNode }) {
-  const router = useRouter();
   const segments = useSegments();
   const { isAuthenticated, ready: authReady, signOut } = useAuth();
   const isAdminRoute = segments[0] === 'admin';
@@ -38,8 +36,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const handleAuthError = useCallback(async () => {
     await signOut();
-    router.replace(LOGIN_ROUTE);
-  }, [router, signOut]);
+  }, [signOut]);
 
   const loadData = useCallback(async () => {
     try {
@@ -73,11 +70,19 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [handleAuthError]);
 
   useEffect(() => {
-    if (!authReady || !isAuthenticated) return;
+    if (!authReady || !isAuthenticated) {
+      setListings([]);
+      setConfig(null);
+      setUserData(null);
+      setError(null);
+      return;
+    }
     loadData();
   }, [authReady, isAuthenticated, loadData]);
 
-  if (isAdminRoute || !authReady || !isAuthenticated) {
+  const needsData = authReady && isAuthenticated && !isAdminRoute;
+
+  if (!needsData) {
     return <>{children}</>;
   }
 
